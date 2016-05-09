@@ -71,7 +71,7 @@ However, several people had successfully extract information from protected appl
 A significant number of systems has been designed working on shielding protected applications. They had used special trusted hardware, or set up hypervisors to keep the operating system from reading or writing application memory. As a result, even if the OS could be malicious, the trusted computing base would effectively protect applications' memory, making it safe for users to operate on these applications.
 \\
 \indent
-However, though the shielding computing structure could effectively protect most applications, some legacy code may still not be protected from malicious OS. As a result, the shielding system has to completely insulate the application from all types of adversarial action by the untrusted operating system. As the operating systems have to deal with resource management and provide services to the applications, the integrity of safety controlling could be a problem. 
+However, though the shielding computing structure could effectively protect most applications, some legacy code may still not be protected from malicious OS. As a result, the shielding system has to completely insulate the application from all types of adversarial action by the untrusted operating system. As the operating systems have to deal with resource management and provide services to the applications, the integrity of safety controlling could be a problem.
 \\
 \indent
 In the papers [], control flow integrity was discussed, with the ways to protect a system from Iago attacks. As these paper discussed, malicious OS could craft the output of system calls, acting like normal system calls. To carefully defend against Iago attacks, we could check control flow integrity, which contains checking process in every step of control flow, and make a decision before the system calls processing into application code. The security systems, which have control flow integrity check, would recognize the malicious system calls that tend to act like the normal ones. Those kind of systems are seen to be safe until recent years, when side-channel attack was frequently discussed and became an important threat to the security systems.
@@ -83,10 +83,42 @@ When setting up malicious side channel attacks, the attacker would firstly set u
 For example, it is clear that the memory access time could be much difference if we load from main memory at every time. As a result, if someone who has no permission with looking into the memory access of an application, he might still be able to get the information from side channels based on the time difference. In recent years, more research had focused on the attack on last level cache, known as LLC. In a system with VMs or a cloud computing system, typically the LLC would be shared among the cores, making it risky and vulnerable to possible compromised cores with malicious applications and OS. However, unlike L1 cache, LLC cache has much slower access than L1 cache, making it hard for the attackers to set up side channels. One of the threat model was using FLUSH+RELOAD strategy[], which forces the attacker to FLUSH LLC and thus achieving high resolution. It is proved that this strategy could work in some side channel attacks on x86 architecture.
 \\
 \indent
-//TODO:LLC attack on ARM, difficulty and originality
-//TODO:structure of the experiments and the paper
+We would implement LLC side channel attack on ARMv8 platform and take several tests to evaluate the performance of this type of attack. The type of FLUSH+RELOAD model will be used in the implementation, and we will watch the difference in time between the tests with FLUSH+RELOAD and without FLUSH+RELOAD. On the architecture of ARMv8, there are several types of difference between ARMv8 and x86. There could be different instructions for flushing cache, and the management of memory access could also be different. It is proved that adding some noise in cache side channel can be reduced in the situation when the attacker and the victim share the memory. As a result, FLUSH+RELOAD attack might be able to detected and disabled by some noise artificially added on. However, current research focused mainly on x86 architecture, so in this paper we would discuss the type of attack on ARMv8 architecture.
+\\
+\indent
+The major challenge of our research is the brand new structure of ARMv8. With the new architecture, new instruction set will affect on FLUSH operations. We have to implement with new  in-line assembly code to ensure the operations on LLC are correct. On x86 architecture, as there are many ways to flush LLC, it could be easier to implement FLUSH operation. However, on ARMv8, there would be fewer banked registers and modes, FLUSH+RELOAD operations need to be re-designed. Another challenge introduced by this research is the discussion of overhead brought by the attackers. If we could see a wide difference in the performance with or without attackers, we might need to consider some effective ways both for the attacker and system defence.
+\\
+\indent
+In summary, our paper have made these contributions:
+\begin{itemize}
+  \item We have implemented LLC side channel attack on ARMv8 architecture, and proved that it is a kind of attack that should be taken serious consideration.
+  \item We have tested our attack on Juno r1 platform and collect the data of the performance with and without attacker, making attackers more effective on ARMv8 architecture.
+  \item We have discussed the results and introduced a way to deal with the attackers. Experiments would be taken, proving that using XXX to defend against LLC side channel attack could be applicable.
+\end{itemize}
 Recent research~\cite{XuCuiPeinado2015},
 \section{Related Work}
+
+\textbf{LLC Convert Channels}: Percival [] describes an L2 covert channel with a capacity of 100 KiB/s, but does not explain how the attack recovers the address mapping. Ristenpart et al.[32] experiment with L2 covert channels in a cloud environment, achieving a bandwidth of about 0.2 b/s. Xu et al. [] extend this attack, reporting an L2-based channel with a capacity of 233 b/s. By focusing on a small group of cache sets, rather than probing the whole cache, Wu et al. [] achieve a transfer rate of over 190 Kb/s. By accurately mapping the cache sets, our attack achieves a much higher bandwidth than prior work.
+\\
+\indent
+\textbf{LLC Side Channel Attacks:} Due to the low channel capacity, an LLC-based side channel typically only leaks course-grain information. For example, the attacks of Ristenpart et al. [32] leak information about co-residency, traffic rates and keystroke timing. Zhang et al. [46] use an L2 side channel to detect non-cooperating co-resident VMs. Our attack improves on this work by achieving a high granularity that enables leaking of cryptographic keys. Yarom and Falkner [] show that when attacker and victim share memory, e.g. shared libraries, the technique of Gullasch et al. [16] can achieve an efficient crossVM, cross-core, LLC attack. The same technique has been used in other scenarios []. Our
+attack removes the requirement for sharing memory, and is powerful enough to recover the key from the latest GnuPG crypto software which uses the more advanced 618 sliding window technique for modular exponentiation, which is impossible using FLUSH+RELOAD attacks.
+\\
+\indent
+In concurrent work Irazoqui et al. [23] describes the use of large pages for mounting a synchronous LLC PRIME+PROBE attack against the last round of AES. As mentioned above, [] had introduced cache flush attacks on x86.
+\\
+\indent
+\textbf{FLUSH+RELOAD Attacks and Page Sharing:} The FLUSH and RELOAD technique is a variant of PRIME+PROBE [] that relies on sharing pages between the spy and the victim processes. With shared pages, the spy can ensure that a specific memory line is evicted from the whole cache hierarchy. The spy uses this to monitor access to the memory line. The attack is a variation of the technique suggested by Gullasch et al. [], which include adaptations for use in multi-core and in virtualized environments.
+\\
+\indent
+A round of attack consists of three phases. During the first phase, the monitored memory line is flushed from the cache hierarchy. The spy, then, waits to allow the victim time to access the memory line before the third phase. In the third phase, the spy reloads the memory line, measuring the time to load it. If during the wait phase the victim accesses the memory line, the line will be available in the cache and the reload operation will take a short time. If, on the other hand, the victim has not accessed the memory line, the line will need to be brought from memory and the reload will take significantly longer.
+\\
+\indent
+The victim access can overlap the reload phase of the spy. In such a case, the victim access will not trigger a cache fill. Instead, the victim will use the cached data from the reload phase. Consequently, the spy will miss the access.
+
+
+
+
 
 \section{Duplicating LLC based Side-Channel Attacks on ARMv8}
 
